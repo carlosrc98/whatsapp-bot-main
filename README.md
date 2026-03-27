@@ -261,7 +261,7 @@ Envía un mensaje al número sandbox de Twilio **(+1 415 523 8886)** y el bot de
 git init
 git add .
 git commit -m "WhatsApp AI Bot v1"
-git remote add origin https://github.com/TU_USUARIO/whatsapp-bot.git
+git remote add origin https://github.com/carlosrc98/whatsapp-bot-main/
 git branch -M main
 git push -u origin main
 ```
