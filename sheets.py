@@ -3,9 +3,10 @@ import csv
 import io
 import json
 
-SHEET_ID = "1Iq4Y8lCSbSuJh-V-AsaE4MkQXPXc5OP2Y21_DHX2PYE"
+SHEET_ID = "17cgprZE6fp7PpNCve3zHlLWXWdiN07ZsK2ZiiKiv8XI"
 BASE_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynrkgrBcw8JE96uqWZi8GMcungbL-qL9P8N6-YlnmfbuoA__42lui4cVl7RLinLs020w/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzN9pMHUfeNJElW9V0DB9idrSjbc2xw5_j0mA47zRJIzmhPIcGodd1MrHqtpEOVanbUsw/exec"
+
 
 async def get_catalogo() -> str:
     url = BASE_URL + "&sheet=Catalogo"
@@ -24,41 +25,82 @@ async def get_catalogo() -> str:
         if row[9].strip() != "Activo":
             continue
 
-        precio_raw = row[6].strip().replace("$", "").replace(".", "").replace(",", "").strip()
+        precio_raw = row[7].strip().replace("$", "").replace(".", "").replace(",", "").strip()
         try:
             precio = int(precio_raw)
             precio_fmt = "${:,}".format(precio).replace(",", ".")
         except:
-            precio_fmt = row[6]
+            precio_fmt = row[7]
 
         producto = (
             "- " + row[2] +
-            " | Tallas: " + row[4] +
-            " | Colores: " + row[5] +
+            " | Categoría: " + row[1] +
+            " | Capacidad: " + row[4] +
             " | Precio: " + precio_fmt +
-            " | Stock: " + row[7] + " uds" +
+            " | Beneficio: " + row[5] +
             " | Ref: " + row[8]
         )
         productos.append(producto)
 
     if not productos:
-        return "No hay productos disponibles en este momento."
+        return "No hay servicios disponibles en este momento."
 
     return "\n".join(productos)
 
+
+async def buscar_producto_por_referencia(referencia: str):
+    url = BASE_URL + "&sheet=Catalogo"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+
+    reader = csv.reader(io.StringIO(response.text))
+    rows = list(reader)
+
+    referencia = referencia.strip().upper()
+
+    for row in rows:
+        if len(row) < 10:
+            continue
+        if not row[0].startswith("R"):
+            continue
+        if row[9].strip() != "Activo":
+            continue
+
+        if row[8].strip().upper() == referencia:
+            precio_raw = row[7].strip().replace("$", "").replace(".", "").replace(",", "").strip()
+            try:
+                precio = int(precio_raw)
+            except:
+                precio = 0
+
+            return {
+                "id": row[0].strip(),
+                "categoria": row[1].strip(),
+                "servicio": row[2].strip(),
+                "descripcion": row[3].strip(),
+                "capacidad": row[4].strip(),
+                "beneficio": row[5].strip(),
+                "normativo": row[6].strip(),
+                "precio": precio,
+                "referencia": row[8].strip(),
+                "estado": row[9].strip()
+            }
+
+    return None
+
+
 async def registrar_pedido(telefono: str, nombre: str, referencia: str,
-                            producto: str, talla: str, color: str,
-                            cantidad: int, precio: int) -> bool:
+                            servicio: str, descripcion: str, capacidad: str,
+                            precio: int) -> bool:
     try:
         data = {
-            "telefono":   telefono,
-            "nombre":     nombre,
+            "telefono": telefono,
+            "nombre_cliente": nombre,
             "referencia": referencia,
-            "producto":   producto,
-            "talla":      talla,
-            "color":      color,
-            "cantidad":   cantidad,
-            "precio":     precio
+            "servicio": servicio,
+            "descripcion": descripcion,
+            "capacidad": capacidad,
+            "precio": precio
         }
         async with httpx.AsyncClient() as client:
             response = await client.post(

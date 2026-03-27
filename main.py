@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Form, Request
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import Response,PlainTextResponse
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
@@ -84,33 +84,50 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
                 if "PEDIDO_CONFIRMAR" in l:
                     linea = l.strip()
                     break
+
             print("[PEDIDO LINEA] " + linea)
             partes = linea.split("|")
-            print("[PEDIDO PARTES] " + str(partes))
             exito = False
+
             try:
-                nombre     = partes[1].strip()
-                referencia = partes[2].strip()
-                producto   = partes[3].strip()
-                talla      = partes[4].strip()
-                color      = partes[5].strip()
-                cantidad   = int(partes[6].strip())
-                precio_raw = partes[7].strip().replace("$","").replace(".","").replace(",","")
-                precio     = int(precio_raw)
-                total      = cantidad * precio
-                ok = await registrar_pedido(phone, nombre, referencia, producto, talla, color, cantidad, precio)
+                # Estructura esperada:
+                # PEDIDO_CONFIRMAR|Nombre Cliente|Referencia|Servicio|Descripcion|Capacidad|Precio
+
+                nombre      = partes[1].strip()
+                referencia  = partes[2].strip()
+                servicio    = partes[3].strip()
+                descripcion = partes[4].strip()
+                capacidad   = partes[5].strip()
+                precio_raw  = partes[6].strip().replace("$", "").replace(".", "").replace(",", "")
+                precio      = int(precio_raw)
+
+                ok = await registrar_pedido(
+                    phone=phone,
+                    nombre=nombre,
+                    referencia=referencia,
+                    servicio=servicio,
+                    descripcion=descripcion,
+                    capacidad=capacidad,
+                    precio=precio
+                )
+
                 if ok:
-                    reply = ("Pedido registrado exitosamente.\n"
-                             "Producto: " + producto + "\n"
-                             "Talla: " + talla + " | Color: " + color + "\n"
-                             "Cantidad: " + str(cantidad) + "\n"
-                             "Total: $" + "{:,}".format(total).replace(",", ".") + "\n\n"
-                             "Un asesor te confirmara el pedido pronto.")
+                    reply = (
+                        "✅ Solicitud registrada exitosamente.\n\n"
+                        f"📌 Servicio: {servicio}\n"
+                        f"🔖 Referencia: {referencia}\n"
+                        f"📝 Descripción: {descripcion}\n"
+                        f"👥 Capacidad: {capacidad}\n"
+                        f"💰 Valor: ${'{:,}'.format(precio).replace(',', '.')}\n\n"
+                        "Un asesor te confirmará la solicitud pronto."
+                    )
                     exito = True
+
             except Exception as ep:
-                print("[ERROR PARSE] " + str(ep))
+                print("[ERROR PARSE PEDIDO_CONFIRMAR] " + str(ep))
+
             if not exito:
-                reply = "Hubo un problema procesando tu pedido. Un asesor te ayudara."
+                reply = "❌ Hubo un problema procesando tu solicitud. Un asesor te ayudará."
 
         save_messages(phone, text, reply)
         send_whatsapp(phone, reply)
