@@ -101,6 +101,10 @@ async def registrar_pedido(
     precio: int
 ) -> bool:
     try:
+        # ✅ FIX: asegurar que el telefono tenga + para que Twilio lo acepte
+        telefono = telefono.strip()
+        if not telefono.startswith("+"):
+            telefono = "+" + telefono
         data = {
             "telefono": telefono,
             "nombre": nombre,          # ✅ FIX: antes era "nombre_cliente", no coincidía con Apps Script
