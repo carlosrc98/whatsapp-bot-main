@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import Response,PlainTextResponse
+from fastapi.responses import Response, PlainTextResponse
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
@@ -157,7 +157,15 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
             if not exito:
                 reply = "❌ Hubo un problema procesando tu solicitud. Un asesor te ayudara."
 
-        save_messages(phone, text, reply)
+        # ✅ FIX doble registro: guardar en historial SIN la linea tecnica
+        # Si se guarda PEDIDO_CONFIRMAR en el historial, el modelo la regenera
+        # en el siguiente mensaje y vuelve a registrar el pedido
+        reply_para_historial = "\n".join(
+            l for l in reply.split("\n")
+            if not l.strip().startswith("PEDIDO_CONFIRMAR")
+        ).strip()
+
+        save_messages(phone, text, reply_para_historial)
         send_whatsapp(phone, reply)
         print("[OK] Respuesta enviada a " + phone)
 
