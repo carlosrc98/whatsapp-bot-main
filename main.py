@@ -14,19 +14,20 @@ app = FastAPI(title="WhatsApp AI Bot")
 twilio_client = Client(config.TWILIO_SID, config.TWILIO_TOKEN)
 
 
-def send_whatsapp(to: str, body:str):
+def send_whatsapp(to: str, body: str):
     """Envia un mensaje de WhatsApp via Twilio"""
     twilio_client.messages.create(
         body=body,
         from_="whatsapp:" + config.TWILIO_NUMBER,
-        to=to #ya viene como "whatsapp:+57..."
+        to=to  # ya viene como "whatsapp:+57..."
     )
 
 
 @app.get("/health")
 def health_check():
-    """Endpoint de verificacion-Railway lo usa para saber si el bot vive"""
+    """Endpoint de verificacion - Railway lo usa para saber si el bot vive"""
     return {"status": "ok", "bot": config.EMPRESA}
+
 
 @app.post("/webhook")
 async def webhook(From: str = Form(...), Body: str = Form(...)):
@@ -79,19 +80,29 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
             reply = "No tengo esa informacion. Un asesor te contactara pronto."
 
         elif "PEDIDO_CONFIRMAR" in reply:
+            # Extraer la linea tecnica del reply
             linea = ""
             for l in reply.split("\n"):
-                if "PEDIDO_CONFIRMAR" in l:
+                if l.strip().startswith("PEDIDO_CONFIRMAR"):
                     linea = l.strip()
                     break
+
+            # ✅ Limpiar la linea tecnica del mensaje visible al cliente
+            reply_visible = "\n".join(
+                l for l in reply.split("\n")
+                if not l.strip().startswith("PEDIDO_CONFIRMAR")
+            ).strip()
 
             print("[PEDIDO LINEA] " + linea)
             partes = linea.split("|")
             exito = False
 
             try:
-                # Estructura esperada:
-                # PEDIDO_CONFIRMAR|Nombre Cliente|Referencia|Servicio|Descripcion|Capacidad|Precio
+                # Estructura esperada del prompt:
+                # PEDIDO_CONFIRMAR|Nombre|Referencia|Servicio|Descripcion|Capacidad|Precio
+
+                if len(partes) < 7:
+                    raise ValueError("Linea tecnica incompleta: " + linea)
 
                 nombre      = partes[1].strip()
                 referencia  = partes[2].strip()
@@ -101,9 +112,32 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
                 precio_raw  = partes[6].strip().replace("$", "").replace(".", "").replace(",", "")
                 precio      = int(precio_raw)
 
+                # ✅ Extraer empresa y ciudad del mensaje visible
+                # Formato nuevo: "🏢 Mi Empresa  |  📍 Bogota"
+                empresa = ""
+                ciudad  = ""
+                for l in reply_visible.split("\n"):
+                    l_clean = l.strip()
+                    # Formato con emojis: 🏢 Empresa  |  📍 Ciudad
+                    if "🏢" in l_clean and "📍" in l_clean:
+                        partes_linea = l_clean.split("|")
+                        if len(partes_linea) == 2:
+                            empresa = partes_linea[0].replace("🏢", "").strip()
+                            ciudad  = partes_linea[1].replace("📍", "").strip()
+                    # Fallback formato texto plano: "Empresa: X" / "Ciudad: X"
+                    elif l_clean.lower().startswith("empresa:"):
+                        empresa = l_clean.split(":", 1)[1].strip()
+                    elif l_clean.lower().startswith("ciudad:"):
+                        ciudad = l_clean.split(":", 1)[1].strip()
+
+                # ✅ Extraer numero limpio (sin "whatsapp:")
+                telefono = phone.replace("whatsapp:", "").strip()
+
                 ok = await registrar_pedido(
-                    phone=phone,
+                    telefono=telefono,
                     nombre=nombre,
+                    empresa=empresa,
+                    ciudad=ciudad,
                     referencia=referencia,
                     servicio=servicio,
                     descripcion=descripcion,
@@ -112,22 +146,16 @@ async def webhook(From: str = Form(...), Body: str = Form(...)):
                 )
 
                 if ok:
-                    reply = (
-                        "✅ Solicitud registrada exitosamente.\n\n"
-                        f"📌 Servicio: {servicio}\n"
-                        f"🔖 Referencia: {referencia}\n"
-                        f"📝 Descripción: {descripcion}\n"
-                        f"👥 Capacidad: {capacidad}\n"
-                        f"💰 Valor: ${'{:,}'.format(precio).replace(',', '.')}\n\n"
-                        "Un asesor te confirmará la solicitud pronto."
-                    )
+                    # Enviar solo el mensaje visible, sin la linea tecnica
+                    reply = reply_visible
                     exito = True
+                    print("[PEDIDO OK] " + nombre + " | " + servicio)
 
             except Exception as ep:
                 print("[ERROR PARSE PEDIDO_CONFIRMAR] " + str(ep))
 
             if not exito:
-                reply = "❌ Hubo un problema procesando tu solicitud. Un asesor te ayudará."
+                reply = "❌ Hubo un problema procesando tu solicitud. Un asesor te ayudara."
 
         save_messages(phone, text, reply)
         send_whatsapp(phone, reply)

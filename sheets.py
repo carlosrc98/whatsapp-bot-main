@@ -5,7 +5,7 @@ import json
 
 SHEET_ID = "17cgprZE6fp7PpNCve3zHlLWXWdiN07ZsK2ZiiKiv8XI"
 BASE_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv"
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxy3h2Lzpq5LDdpprE5XWpAeKegvqVDS71xqXPK1N518xgqsde4HS4CjlvVp8TcbA9lsQ/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxs4Cl7HH90ILApUMqTCS_OGhZfhuuNMRsYXygzlhL8MHuIgnvvuILnG-ksQKJfTrAEQQ/exec"
 
 
 async def get_catalogo() -> str:
@@ -89,13 +89,23 @@ async def buscar_producto_por_referencia(referencia: str):
     return None
 
 
-async def registrar_pedido(telefono: str, nombre: str, referencia: str,
-                            servicio: str, descripcion: str, capacidad: str,
-                            precio: int) -> bool:
+async def registrar_pedido(
+    telefono: str,
+    nombre: str,       # ✅ FIX: clave unificada como "nombre" (igual que el Apps Script)
+    empresa: str,      # ✅ NUEVO: se agrega empresa
+    ciudad: str,       # ✅ NUEVO: se agrega ciudad
+    referencia: str,
+    servicio: str,
+    descripcion: str,
+    capacidad: str,
+    precio: int
+) -> bool:
     try:
         data = {
             "telefono": telefono,
-            "nombre_cliente": nombre,
+            "nombre": nombre,          # ✅ FIX: antes era "nombre_cliente", no coincidía con Apps Script
+            "empresa": empresa,        # ✅ NUEVO
+            "ciudad": ciudad,          # ✅ NUEVO
             "referencia": referencia,
             "servicio": servicio,
             "descripcion": descripcion,
